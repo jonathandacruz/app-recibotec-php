@@ -2,17 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\BillingAddressService;
 use App\Services\UserService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
     protected $userService;
+    protected $billingAddressService;
 
     // Injetando o UserService no construtor
-    public function __construct(UserService $userService)
+    public function __construct(UserService $userService, BillingAddressService $billingAddressService)
     {
         $this->userService = $userService;
+        $this->billingAddressService = $billingAddressService;
     }
     /**
      * Display a listing of the resource.
@@ -97,5 +102,38 @@ class UserController extends Controller
         }
 
         return response()->json(['message' => 'Unauthorized'], 401);
+    }
+
+    public function userBillingAddress(Request $request): JsonResponse
+    {
+        // Valida os dados do request
+        $validated = $request->validate([
+            'cep' => 'required|string|max:9',
+            'endereco' => 'required|string|max:255',
+            'numero' => 'required|string|max:10',
+            'complemento' => 'nullable|string|max:255',
+            'bairro' => 'required|string|max:255',
+            'cidade' => 'required|string|max:255',
+            'estado' => 'required|string|max:2',
+            'pais' => 'required|string|max:255',
+        ]);
+
+        // Obtém o usuário autenticado
+        $user = Auth::user();
+
+        try {
+            // Chama o serviço para salvar o endereço
+            $billingAddress = $this->billingAddressService->saveBillingAddress($validated, $user->id);
+
+            return response()->json([
+                'message' => 'Endereço de cobrança salvo com sucesso!',
+                'data' => $billingAddress,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Erro ao salvar o endereço.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }
